@@ -187,21 +187,26 @@ private:
     
     template<typename Decrypter>
     bool try_decrypt(Decrypter &decrypter, PDU &pdu) {
-        if (decrypter.decrypt(pdu)) {
-            auto &dot11 = pdu.rfind_pdu<Dot11Data>();
-            auto &snap = pdu.rfind_pdu<SNAP>();
-            // create an EthernetII using the src and dst addrs
-            auto pkt = make_eth_packet(dot11);
-            // move the inner pdu into the EthernetII to avoid copying
-            pkt.inner_pdu(snap.release_inner_pdu());
-            auto buffer = pkt.serialize();
-            if (write(*fd_, buffer.data(), buffer.size()) == -1) {
-                throw runtime_error("Error writing to tap interface");
+        try {
+            if (decrypter.decrypt(pdu)) {
+                auto &dot11 = pdu.rfind_pdu<Dot11Data>();
+                auto &snap = pdu.rfind_pdu<SNAP>();
+                // create an EthernetII using the src and dst addrs
+                auto pkt = make_eth_packet(dot11);
+                // move the inner pdu into the EthernetII to avoid copying
+                pkt.inner_pdu(snap.release_inner_pdu());
+                auto buffer = pkt.serialize();
+                if (write(*fd_, buffer.data(), buffer.size()) == -1) {
+                    throw runtime_error("Error writing to tap interface");
+                }
+                // if the decrypter is successfull, then SUCCESS
+                return true;
             }
-            // if the decrypter is successfull, then SUCCESS
-            return true;
+            return false;
+        } 
+        catch(exception& ex) {
+            cout << "[-] " << ex.what() << endl;
         }
-        return false;
     }
 
     void thread_proc() {
